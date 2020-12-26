@@ -200,63 +200,56 @@ app.put("/*", (req, res) => {
 app.post("/*@upload", (req, res) => {
     res.filename = getFileNameByParam(req.params[0]);
 
-    let buff = null;
-    let saveas = null;
-    req.busboy.on("file", (key, stream, filename) => {
-        if (key == "file") {
-            let buffs = [];
-            stream.on("data", (d) => {
-                buffs.push(d);
+    const tempFile = `upload-${new Date().getTime()}`;
+
+    req.busboy.on("file", (key, stream) => {
+        // check file size
+        const writeStream = fs.createWriteStream(relative(res.filename, tempFile));
+
+        writeStream.on("error", (err) => {
+            req.flash("error", err);
+            res.redirect("back");
             });
-            stream.on("end", () => {
-                buff = Buffer.concat(buffs);
-                buffs = null;
+        stream.pipe(writeStream);
             });
-        }
-    });
+
     req.busboy.on("field", (key, value) => {
         if (key == "saveas") {
-            saveas = value;
-        }
-    });
-    req.busboy.on("finish", () => {
-        if (!buff || !saveas) {
-            return res.status(400).end();
-        }
-        let fileExists = new Promise((resolve, reject) => {
-            // check if file exists
-            fs.stat(relative(res.filename, saveas), (err, stats) => {
+            new Promise((resolve, reject) => {
+                // check if file already exists
+                fs.stat(relative(res.filename, value), (err, stats) =>
+                    err ? resolve() : reject("File exists, cannot overwrite. ")
+                );
+            }).then(() => new Promise((resolve, reject) => {
+                fs.rename(
+                    path.join(res.filename, tempFile),
+                    path.join(res.filename, value),
+                    (err) => {
                 if (err) {
-                    return reject(err);
-                }
-                return resolve(stats);
-            });
-        });
-
-        fileExists.then((stats) => {
-            req.flash("error", "File exists, cannot overwrite. ");
-            res.redirect("back");
-        }).catch((err) => {
-            console.log("saving");
-            let save = fs.createWriteStream(relative(res.filename, saveas));
-            save.on("close", () => {
-                if (buff.length === 0) {
-                    req.flash("success", "File saved. Warning: empty file.");
+                            reject(err);
                 }
                 else {
-                    buff = null;
-                    req.flash("success", "File saved. ");
+                            fs.stat(relative(res.filename, value), (err, stats) => resolve(!stats.size ? "File saved. Warning: empty file." : "File saved."));
+                        };
                 }
+                );
+            }))
+            .then((success) => {
+                req.flash("success", success);
+            })
+            .catch((error) => new Promise((resolve) => {
+                // delete temp file on error
+                fs.unlink(relative(res.filename, tempFile), () => {
+                    req.flash("error", error);
+                    resolve();
+            });
+            }))
+            .finally(() => {
                 res.redirect("back");
             });
-            save.on("error", (err) => {
-                req.flash("error", err);
-                res.redirect("back");
-            });
-            save.write(buff);
-            save.end();
+        }
         });
-    });
+
     req.pipe(req.busboy);
 });
 
