@@ -55,8 +55,8 @@ app.engine("handlebars", hbs({
             let out = "";
             path = path.split("/");
             path.splice(path.length - 1, 1);
-            if (path[0] !== 'assets' && FOLDER) {
-                path.shift();
+                if (path[0] !== "assets" && FOLDER) {
+                    FOLDER.split("/").forEach(() => path.shift())
             }
             path.unshift("");
             path.forEach((folder, index) => {
