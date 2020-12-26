@@ -25,63 +25,84 @@ const filesize = require("filesize");
 const octicons = require("octicons");
 const handlebars = require("handlebars");
 
-const FOLDER = process.env.FOLDER || '';
-const SESSION_HASH = process.env.SESSION_HASH || 'default';
-const KEY = process.env.KEY ? base32.decode(process.env.KEY.replace(/ /g, "")) : null;
+const FOLDER = process.env.FOLDER || "";
+const SESSION_HASH = process.env.SESSION_HASH || "default";
+const KEY = process.env.KEY
+    ? base32.decode(process.env.KEY.replace(/ /g, ""))
+    : null;
 
-const getFileNameByParam = (param) => (!FOLDER || param.indexOf('assets') === 0) ?
-    param :
-    path.join(FOLDER, param);
+const getFileNameByParam = (param) =>
+    !FOLDER || param.indexOf("assets") === 0 ? param : path.join(FOLDER, param);
 
 let app = express();
 let http = app.listen(process.env.PORT || 8080);
 
 app.set("views", path.join(__dirname, "views"));
-app.engine("handlebars", hbs({
-    partialsDir: path.join(__dirname, "views", "partials"),
-    layoutsDir: path.join(__dirname, "views", "layouts"),
-    defaultLayout: "main",
-    helpers: {
-        octicon: (i, options) => {
-            if (!octicons[i]) {
-                return new handlebars.SafeString(octicons.question.toSVG());
-            }
-            return new handlebars.SafeString(octicons[i].toSVG());
-        },
-        eachpath: (path, options) => {
-            if (typeof path != "string") {
-                return "";
-            }
-            let out = "";
-            path = path.split("/");
-            path.splice(path.length - 1, 1);
+app.engine(
+    "handlebars",
+    hbs({
+        partialsDir: path.join(__dirname, "views", "partials"),
+        layoutsDir: path.join(__dirname, "views", "layouts"),
+        defaultLayout: "main",
+        helpers: {
+            octicon: (i, options) => {
+                if (!octicons[i]) {
+                    return new handlebars.SafeString(octicons.question.toSVG());
+                }
+                return new handlebars.SafeString(octicons[i].toSVG());
+            },
+            eachpath: (path, options) => {
+                if (typeof path != "string") {
+                    return "";
+                }
+                let out = "";
+                path = path.split("/");
+                path.splice(path.length - 1, 1);
                 if (path[0] !== "assets" && FOLDER) {
                     FOLDER.split("/").forEach(() => path.shift())
-            }
-            path.unshift("");
-            path.forEach((folder, index) => {
-                out += options.fn({
-                    name: folder + "/",
-                    path: "/" + path.slice(1, index + 1).join("/"),
-                    current: index === path.length - 1
+                }
+                path.unshift("");
+                path.forEach((folder, index) => {
+                    out += options.fn({
+                        name: folder + "/",
+                        path: "/" + path.slice(1, index + 1).join("/"),
+                        current: index === path.length - 1,
+                    });
                 });
-            });
-            return out;
+                return out;
+            },
         },
-    }
-}));
+    })
+);
 app.set("view engine", "handlebars");
 
-app.use("/bootstrap", express.static(path.join(__dirname, "node_modules/bootstrap/dist")));
-app.use("/octicons", express.static(path.join(__dirname, "node_modules/octicons/build")));
-app.use("/jquery", express.static(path.join(__dirname, "node_modules/jquery/dist")));
-app.use("/filesize", express.static(path.join(__dirname, "node_modules/filesize/lib")));
-app.use("/xterm", express.static(path.join(__dirname, "node_modules/xterm/dist")));
+app.use(
+    "/bootstrap",
+    express.static(path.join(__dirname, "node_modules/bootstrap/dist"))
+);
+app.use(
+    "/octicons",
+    express.static(path.join(__dirname, "node_modules/octicons/build"))
+);
+app.use(
+    "/jquery",
+    express.static(path.join(__dirname, "node_modules/jquery/dist"))
+);
+app.use(
+    "/filesize",
+    express.static(path.join(__dirname, "node_modules/filesize/lib"))
+);
+app.use(
+    "/xterm",
+    express.static(path.join(__dirname, "node_modules/xterm/dist"))
+);
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 
-app.use(session({
-    secret: SESSION_HASH    
-}));
+app.use(
+    session({
+        secret: SESSION_HASH,
+    })
+);
 app.use(flash());
 app.use(busboy());
 app.use(bodyparser.urlencoded());
@@ -93,7 +114,7 @@ app.get("/@logout", (req, res) => {
         req.session.login = false;
         req.flash("success", "Signed out.");
         res.redirect("/@login");
-        return
+        return;
     }
     req.flash("error", "You were never logged in...");
     res.redirect("back");
@@ -160,13 +181,15 @@ app.all("/*", (req, res, next) => {
         });
     });
 
-    fileExists.then((stats) => {
-        res.stats = stats;
-        next();
-    }).catch((err) => {
-        res.stats = { error: err };
-        next();
-    });
+    fileExists
+        .then((stats) => {
+            res.stats = stats;
+            next();
+        })
+        .catch((err) => {
+            res.stats = { error: err };
+            next();
+        });
 });
 
 // currently unused
@@ -182,16 +205,13 @@ app.put("/*", (req, res) => {
                 });
                 save.on("error", (err) => {
                     res.flash("error", err);
-                    res.redirect("back");    
+                    res.redirect("back");
                 });
             }
         });
-        req.busboy.on("field", (key, value) => {
-
-        });
+        req.busboy.on("field", (key, value) => {});
         req.pipe(req.busboy);
-    }
-    else {
+    } else {
         req.flash("error", "File exists, cannot overwrite. ");
         res.redirect("back");
     }
@@ -209,9 +229,9 @@ app.post("/*@upload", (req, res) => {
         writeStream.on("error", (err) => {
             req.flash("error", err);
             res.redirect("back");
-            });
+        });
         stream.pipe(writeStream);
-            });
+    });
 
     req.busboy.on("field", (key, value) => {
         if (key == "saveas") {
@@ -225,13 +245,13 @@ app.post("/*@upload", (req, res) => {
                     path.join(res.filename, tempFile),
                     path.join(res.filename, value),
                     (err) => {
-                if (err) {
+                        if (err) {
                             reject(err);
-                }
-                else {
+                        }
+                        else {
                             fs.stat(relative(res.filename, value), (err, stats) => resolve(!stats.size ? "File saved. Warning: empty file." : "File saved."));
                         };
-                }
+                    }
                 );
             }))
             .then((success) => {
@@ -242,13 +262,13 @@ app.post("/*@upload", (req, res) => {
                 fs.unlink(relative(res.filename, tempFile), () => {
                     req.flash("error", error);
                     resolve();
-            });
+                });
             }))
             .finally(() => {
                 res.redirect("back");
             });
         }
-        });
+    });
 
     req.pipe(req.busboy);
 });
@@ -271,20 +291,22 @@ app.post("/*@mkdir", (req, res) => {
         });
     });
 
-    fileExists.then((stats) => {
-        req.flash("error", "Folder exists, cannot overwrite. ");
-        res.redirect("back");
-    }).catch((err) => {
-        fs.mkdir(relative(res.filename, folder), (err) => {
-            if (err) {
-                req.flash("error", err);
-                res.redirect("back");
-                return;
-            }
-            req.flash("success", "Folder created. ");
+    fileExists
+        .then((stats) => {
+            req.flash("error", "Folder exists, cannot overwrite. ");
             res.redirect("back");
+        })
+        .catch((err) => {
+            fs.mkdir(relative(res.filename, folder), (err) => {
+                if (err) {
+                    req.flash("error", err);
+                    res.redirect("back");
+                    return;
+                }
+                req.flash("success", "Folder created. ");
+                res.redirect("back");
+            });
         });
-    });
 });
 
 app.post("/*@delete", (req, res) => {
@@ -297,7 +319,7 @@ app.post("/*@delete", (req, res) => {
         return; // res.status(400).end();
     }
 
-    let promises = files.map(f => {
+    let promises = files.map((f) => {
         return new Promise((resolve, reject) => {
             fs.stat(relative(res.filename, f), (err, stats) => {
                 if (err) {
@@ -306,49 +328,57 @@ app.post("/*@delete", (req, res) => {
                 resolve({
                     name: f,
                     isdirectory: stats.isDirectory(),
-                    isfile: stats.isFile()
+                    isfile: stats.isFile(),
                 });
             });
         });
     });
-    Promise.all(promises).then((files) => {
-        let promises = files.map(f => {
-            return new Promise((resolve, reject) => {
-                let op = null;
-                if (f.isdirectory) {
-                    op = (dir, cb) => rimraf(dir, {
-						glob: false
-					}, cb);
-                }
-                else if (f.isfile) {
-                    op = fs.unlink;
-                }
-                if (op) {
-                    op(relative(res.filename, f.name), (err) => {
-                        if (err) {
-                            return reject(err);
-                        }
-                        resolve();
-                    });
-                }
+    Promise.all(promises)
+        .then((files) => {
+            let promises = files.map((f) => {
+                return new Promise((resolve, reject) => {
+                    let op = null;
+                    if (f.isdirectory) {
+                        op = (dir, cb) =>
+                            rimraf(
+                                dir,
+                                {
+                                    glob: false,
+                                },
+                                cb
+                            );
+                    } else if (f.isfile) {
+                        op = fs.unlink;
+                    }
+                    if (op) {
+                        op(relative(res.filename, f.name), (err) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    }
+                });
             });
-        });
-        Promise.all(promises).then(() => {
-            req.flash("success", "Files deleted. ");    
+            Promise.all(promises)
+                .then(() => {
+                    req.flash("success", "Files deleted. ");
+                    res.redirect("back");
+                })
+                .catch((err) => {
+                    req.flash("error", "Unable to delete some files: " + err);
+                    res.redirect("back");
+                });
+        })
+        .catch((err) => {
+            req.flash("error", err);
             res.redirect("back");
-        }).catch((err) => {
-            req.flash("error", "Unable to delete some files: " + err);    
-            res.redirect("back");
         });
-    }).catch((err) => {
-        req.flash("error", err);    
-        res.redirect("back");
-    });
 });
 
 app.get("/*@download", (req, res) => {
     res.filename = getFileNameByParam(req.params[0]);
-    
+
     let files = null;
     try {
         files = JSON.parse(req.query.files);
@@ -358,8 +388,8 @@ app.get("/*@download", (req, res) => {
         res.redirect("back");
         return; // res.status(400).end();
     }
-    
-    let promises = files.map(f => {
+
+    let promises = files.map((f) => {
         return new Promise((resolve, reject) => {
             fs.stat(relative(res.filename, f), (err, stats) => {
                 if (err) {
@@ -368,35 +398,41 @@ app.get("/*@download", (req, res) => {
                 resolve({
                     name: f,
                     isdirectory: stats.isDirectory(),
-                    isfile: stats.isFile()
+                    isfile: stats.isFile(),
                 });
             });
         });
     });
-    Promise.all(promises).then((files) => {
-        let zip = archiver.create("zip", {});
-        zip.on("error", function(err) {
-            res.status(500).send({
-                error: err.message
+    Promise.all(promises)
+        .then((files) => {
+            let zip = archiver.create("zip", {});
+            zip.on("error", function (err) {
+                res.status(500).send({
+                    error: err.message,
+                });
             });
-        });
 
-        files.filter(f => f.isfile).forEach((f) => {
-            zip.file(relative(res.filename, f.name), { name: f.name });
-        });
-        files.filter(f => f.isdirectory).forEach((f) => {
-            zip.directory(relative(res.filename, f.name), f.name);
-        });
+            files
+                .filter((f) => f.isfile)
+                .forEach((f) => {
+                    zip.file(relative(res.filename, f.name), { name: f.name });
+                });
+            files
+                .filter((f) => f.isdirectory)
+                .forEach((f) => {
+                    zip.directory(relative(res.filename, f.name), f.name);
+                });
 
-        res.attachment("Archive.zip");
-        zip.pipe(res);
+            res.attachment("Archive.zip");
+            zip.pipe(res);
 
-        zip.finalize();
-    }).catch((err) => {
-        console.log(err);
-        req.flash("error", err);    
-        res.redirect("back");
-    });
+            zip.finalize();
+        })
+        .catch((err) => {
+            console.log(err);
+            req.flash("error", err);
+            res.redirect("back");
+        });
 });
 
 const shellable = process.env.SHELL != "false" && process.env.SHELL;
@@ -417,38 +453,48 @@ if (shellable || cmdable) {
             return res.status(400).end();
         }
 
-        child_process.exec(cmd, {
-            shell: shell,
-            cwd: relative(res.filename),
-            timeout: 60 * 1000,
-        }, (err, stdout, stderr) => {
-            if (err) {
-                req.flash("error", "Command failed due to non-zero exit code");
+        child_process.exec(
+            cmd,
+            {
+                shell: shell,
+                cwd: relative(res.filename),
+                timeout: 60 * 1000,
+            },
+            (err, stdout, stderr) => {
+                if (err) {
+                    req.flash("error", "Command failed due to non-zero exit code");
+                }
+                res.render(
+                    "cmd",
+                    flashify(req, {
+                        path: res.filename,
+                        cmd: cmd,
+                        stdout: stdout,
+                        stderr: stderr,
+                    })
+                );
             }
-            res.render("cmd", flashify(req, {
-                path: res.filename,
-                cmd: cmd,
-                stdout: stdout,
-                stderr: stderr,
-            }));
-        });
+        );
     });
-    
+
     const pty = require("node-pty");
     const WebSocket = require("ws");
 
     app.get("/*@shell", (req, res) => {
         res.filename = getFileNameByParam(req.params[0]);
 
-        res.render("shell", flashify(req, {
-            path: res.filename,
-        }));
+        res.render(
+            "shell",
+            flashify(req, {
+                path: res.filename,
+            })
+        );
     });
 
     const ws = new WebSocket.Server({ server: http });
-	ws.on("connection", (socket, request) => {
-		console.log(request.url);
-		const { path } = querystring.parse(request.url.split("?")[1]);
+    ws.on("connection", (socket, request) => {
+        console.log(request.url);
+        const { path } = querystring.parse(request.url.split("?")[1]);
         let cwd = relative(path);
         let term = pty.spawn(exec, args, {
             name: "xterm-256color",
@@ -456,24 +502,26 @@ if (shellable || cmdable) {
             rows: 30,
             cwd: cwd,
         });
-        console.log("pid " + term.pid + " shell " + process.env.SHELL + " started in " + cwd);
+        console.log(
+            "pid " + term.pid + " shell " + process.env.SHELL + " started in " + cwd
+        );
 
         term.on("data", (data) => {
             socket.send(data, { binary: true });
         });
         term.on("exit", (code) => {
-            console.log("pid " + term.pid + " ended")
+            console.log("pid " + term.pid + " ended");
             socket.close();
         });
         socket.on("message", (data) => {
-			// special messages should decode to Buffers
-			if (Buffer.isBuffer(data)) {
-				switch (data.readUInt16BE(0)) {
-				case 0:
-					term.resize(data.readUInt16BE(1), data.readUInt16BE(2));
-					return;
-				}
-			}
+            // special messages should decode to Buffers
+            if (Buffer.isBuffer(data)) {
+                switch (data.readUInt16BE(0)) {
+                    case 0:
+                        term.resize(data.readUInt16BE(1), data.readUInt16BE(2));
+                        return;
+                }
+            }
             term.write(data);
         });
         socket.on("close", () => {
@@ -484,16 +532,16 @@ if (shellable || cmdable) {
 
 app.get("/*", (req, res) => {
     if (res.stats.error) {
-        res.render("list", flashify(req, {
-            shellable: shellable,
-            cmdable: cmdable,
-            path: res.filename,
-            errors: [
-                res.stats.error
-            ]
-        }));
-    }
-    else if (res.stats.isDirectory()) {
+        res.render(
+            "list",
+            flashify(req, {
+                shellable: shellable,
+                cmdable: cmdable,
+                path: res.filename,
+                errors: [res.stats.error],
+            })
+        );
+    } else if (res.stats.isDirectory()) {
         if (!req.url.endsWith("/")) {
             return res.redirect(req.url + "/");
         }
@@ -507,54 +555,61 @@ app.get("/*", (req, res) => {
             });
         });
 
-        readDir.then((filenames) => {
-            let promises = filenames.map(f => {
-                return new Promise((resolve, reject) => {
-                    fs.stat(relative(res.filename, f), (err, stats) => {
-                        if (err) {
-                            return reject(err);
-                        }
-                        resolve({
-                            name: f,
-                            isdirectory: stats.isDirectory(),
-                            size: filesize(stats.size)
+        readDir
+            .then((filenames) => {
+                let promises = filenames.map((f) => {
+                    return new Promise((resolve, reject) => {
+                        fs.stat(relative(res.filename, f), (err, stats) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve({
+                                name: f,
+                                isdirectory: stats.isDirectory(),
+                                size: filesize(stats.size),
+                            });
                         });
                     });
                 });
-            });
 
-            Promise.all(promises).then((files) => {
-                res.render("list", flashify(req, {
-                    shellable: shellable,
-                    cmdable: cmdable,
-                    path: res.filename,
-                    files: files,
-                }));    
-            }).catch((err) => {
-                res.render("list", flashify(req, {
-                    shellable: shellable,
-                    cmdable: cmdable,
-                    path: res.filename,
-                    errors: [
-                        err
-                    ]
-                }));
+                Promise.all(promises)
+                    .then((files) => {
+                        res.render(
+                            "list",
+                            flashify(req, {
+                                shellable: shellable,
+                                cmdable: cmdable,
+                                path: res.filename,
+                                files: files,
+                            })
+                        );
+                    })
+                    .catch((err) => {
+                        res.render(
+                            "list",
+                            flashify(req, {
+                                shellable: shellable,
+                                cmdable: cmdable,
+                                path: res.filename,
+                                errors: [err],
+                            })
+                        );
+                    });
+            })
+            .catch((err) => {
+                res.render(
+                    "list",
+                    flashify(req, {
+                        shellable: shellable,
+                        cmdable: cmdable,
+                        path: res.filename,
+                        errors: [err],
+                    })
+                );
             });
-        }).catch((err) => {
-            res.render("list", flashify(req, {
-                shellable: shellable,
-                cmdable: cmdable,
-                path: res.filename,
-                errors: [
-                    err
-                ]
-            }));
+    } else if (res.stats.isFile()) {
+        res.sendFile(relative(res.filename), {
+            dotfiles: "allow",
         });
     }
-    else if (res.stats.isFile()) {
-        res.sendFile(relative(res.filename), {
-			dotfiles: "allow"
-		});
-    }
 });
-
