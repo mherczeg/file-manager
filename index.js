@@ -25,6 +25,14 @@ const filesize = require("filesize");
 const octicons = require("octicons");
 const handlebars = require("handlebars");
 
+const FOLDER = process.env.FOLDER || '';
+const SESSION_HASH = process.env.SESSION_HASH || 'default';
+const KEY = process.env.KEY ? base32.decode(process.env.KEY.replace(/ /g, "")) : null;
+
+const getFileNameByParam = (param) => (!FOLDER || param.indexOf('assets') === 0) ?
+    param :
+    path.join(FOLDER, param);
+
 let app = express();
 let http = app.listen(process.env.PORT || 8080);
 
@@ -47,6 +55,9 @@ app.engine("handlebars", hbs({
             let out = "";
             path = path.split("/");
             path.splice(path.length - 1, 1);
+            if (path[0] !== 'assets' && FOLDER) {
+                path.shift();
+            }
             path.unshift("");
             path.forEach((folder, index) => {
                 out += options.fn({
@@ -69,15 +80,13 @@ app.use("/xterm", express.static(path.join(__dirname, "node_modules/xterm/dist")
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 
 app.use(session({
-    secret: "meowmeow"    
+    secret: SESSION_HASH    
 }));
 app.use(flash());
 app.use(busboy());
 app.use(bodyparser.urlencoded());
 
 // AUTH
-
-const KEY = process.env.KEY ? base32.decode(process.env.KEY.replace(/ /g, "")) : null;
 
 app.get("/@logout", (req, res) => {
     if (KEY) {
@@ -139,7 +148,7 @@ function flashify(req, obj) {
 }
 
 app.all("/*", (req, res, next) => {
-    res.filename = req.params[0];
+    res.filename = getFileNameByParam(req.params[0]);
 
     let fileExists = new Promise((resolve, reject) => {
         // check if file exists
@@ -189,7 +198,7 @@ app.put("/*", (req, res) => {
 });
 
 app.post("/*@upload", (req, res) => {
-    res.filename = req.params[0];
+    res.filename = getFileNameByParam(req.params[0]);
 
     let buff = null;
     let saveas = null;
@@ -252,7 +261,7 @@ app.post("/*@upload", (req, res) => {
 });
 
 app.post("/*@mkdir", (req, res) => {
-    res.filename = req.params[0];
+    res.filename = getFileNameByParam(req.params[0]);
 
     let folder = req.body.folder;
     if (!folder || folder.length < 1) {
@@ -286,7 +295,7 @@ app.post("/*@mkdir", (req, res) => {
 });
 
 app.post("/*@delete", (req, res) => {
-    res.filename = req.params[0];
+    res.filename = getFileNameByParam(req.params[0]);
 
     let files = JSON.parse(req.body.files);
     if (!files || !files.map) {
@@ -345,7 +354,7 @@ app.post("/*@delete", (req, res) => {
 });
 
 app.get("/*@download", (req, res) => {
-    res.filename = req.params[0];
+    res.filename = getFileNameByParam(req.params[0]);
     
     let files = null;
     try {
@@ -408,7 +417,7 @@ if (shellable || cmdable) {
 
     // currently unused
     app.post("/*@cmd", (req, res) => {
-        res.filename = req.params[0];
+        res.filename = rgetFileNameByParam(eq.params[0]);
 
         let cmd = req.body.cmd;
         if (!cmd || cmd.length < 1) {
@@ -436,7 +445,7 @@ if (shellable || cmdable) {
     const WebSocket = require("ws");
 
     app.get("/*@shell", (req, res) => {
-        res.filename = req.params[0];
+        res.filename = getFileNameByParam(req.params[0]);
 
         res.render("shell", flashify(req, {
             path: res.filename,
