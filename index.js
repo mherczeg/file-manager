@@ -5,611 +5,87 @@
 "use strict";
 
 const express = require("express");
-const hbs = require("express-handlebars");
 const bodyparser = require("body-parser");
 const session = require("express-session");
 const busboy = require("connect-busboy");
 const flash = require("connect-flash");
-const querystring = require("querystring");
+const WebSocket = require("ws");
 
-const archiver = require("archiver");
-
-const notp = require("notp");
-const base32 = require("thirty-two");
-
-const fs = require("fs");
-const rimraf = require("rimraf");
 const path = require("path");
+const { SESSION_HASH, PORT, SHELLABLE, CMDABLE } = require("./env");
+const { initShell } = require("./ws-handlers/shell");
+const url = require("url");
 
-const filesize = require("filesize");
-const octicons = require("octicons");
-const handlebars = require("handlebars");
-
-const FOLDER = process.env.FOLDER || "";
-const SESSION_HASH = process.env.SESSION_HASH || "default";
-const KEY = process.env.KEY
-    ? base32.decode(process.env.KEY.replace(/ /g, ""))
-    : null;
-
-const getFileNameByParam = (param) =>
-    !FOLDER || param.indexOf("assets") === 0 ? param : path.join(FOLDER, param);
-
+// configure express
 let app = express();
-let http = app.listen(process.env.PORT || 8080);
+let http = app.listen(PORT);
 
 app.set("views", path.join(__dirname, "views"));
-app.engine(
-    "handlebars",
-    hbs({
-        partialsDir: path.join(__dirname, "views", "partials"),
-        layoutsDir: path.join(__dirname, "views", "layouts"),
-        defaultLayout: "main",
-        helpers: {
-            octicon: (i, options) => {
-                if (!octicons[i]) {
-                    return new handlebars.SafeString(octicons.question.toSVG());
-                }
-                return new handlebars.SafeString(octicons[i].toSVG());
-            },
-            eachpath: (path, options) => {
-                if (typeof path != "string") {
-                    return "";
-                }
-                let out = "";
-                path = path.split("/");
-                path.splice(path.length - 1, 1);
-                if (path[0] !== "assets" && FOLDER) {
-                    FOLDER.split("/").forEach(() => path.shift())
-                }
-                path.unshift("");
-                path.forEach((folder, index) => {
-                    out += options.fn({
-                        name: folder + "/",
-                        path: "/" + path.slice(1, index + 1).join("/"),
-                        current: index === path.length - 1,
-                    });
-                });
-                return out;
-            },
-        },
-    })
-);
+app.engine("handlebars", require("./engines/handlebars"));
 app.set("view engine", "handlebars");
 
 app.use(
-    "/bootstrap",
-    express.static(path.join(__dirname, "node_modules/bootstrap/dist"))
+  "/bootstrap",
+  express.static(path.join(__dirname, "node_modules/bootstrap/dist"))
 );
 app.use(
-    "/octicons",
-    express.static(path.join(__dirname, "node_modules/octicons/build"))
+  "/octicons",
+  express.static(path.join(__dirname, "node_modules/octicons/build"))
 );
 app.use(
-    "/jquery",
-    express.static(path.join(__dirname, "node_modules/jquery/dist"))
+  "/jquery",
+  express.static(path.join(__dirname, "node_modules/jquery/dist"))
 );
 app.use(
-    "/filesize",
-    express.static(path.join(__dirname, "node_modules/filesize/lib"))
+  "/filesize",
+  express.static(path.join(__dirname, "node_modules/filesize/lib"))
 );
 app.use(
-    "/xterm",
-    express.static(path.join(__dirname, "node_modules/xterm/dist"))
+  "/xterm",
+  express.static(path.join(__dirname, "node_modules/xterm/dist"))
 );
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 
 app.use(
-    session({
-        secret: SESSION_HASH,
-    })
+  session({
+    secret: SESSION_HASH,
+  })
 );
 app.use(flash());
 app.use(busboy());
 app.use(bodyparser.urlencoded());
+app.use(require("./lib/auth-middleware"));
 
-// AUTH
-
-app.get("/@logout", (req, res) => {
-    if (KEY) {
-        req.session.login = false;
-        req.flash("success", "Signed out.");
-        res.redirect("/@login");
-        return;
-    }
-    req.flash("error", "You were never logged in...");
-    res.redirect("back");
-});
-
-app.get("/@login", (req, res) => {
-    res.render("login", flashify(req, {}));
-});
-app.post("/@login", (req, res) => {
-    let pass = notp.totp.verify(req.body.token.replace(" ", ""), KEY);
-    console.log(pass, req.body.token.replace(" ", ""));
-    if (pass) {
-        req.session.login = true;
-        res.redirect("/");
-        return;
-    }
-    req.flash("error", "Bad token.");
-    res.redirect("/@login");
-});
-
-app.use((req, res, next) => {
-    if (!KEY) {
-        return next();
-    }
-    if (req.session.login === true) {
-        return next();
-    }
-    req.flash("error", "Please sign in.");
-    res.redirect("/@login");
-});
-
-function relative(...paths) {
-    return paths.reduce((a, b) => path.join(a, b), process.cwd());
-}
-function flashify(req, obj) {
-    let error = req.flash("error");
-    if (error && error.length > 0) {
-        if (!obj.errors) {
-            obj.errors = [];
-        }
-        obj.errors.push(error);
-    }
-    let success = req.flash("success");
-    if (success && success.length > 0) {
-        if (!obj.successes) {
-            obj.successes = [];
-        }
-        obj.successes.push(success);
-    }
-    obj.isloginenabled = !!KEY;
-    return obj;
-}
-
-app.all("/*", (req, res, next) => {
-    res.filename = getFileNameByParam(req.params[0]);
-
-    let fileExists = new Promise((resolve, reject) => {
-        // check if file exists
-        fs.stat(relative(res.filename), (err, stats) => {
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stats);
-        });
-    });
-
-    fileExists
-        .then((stats) => {
-            res.stats = stats;
-            next();
-        })
-        .catch((err) => {
-            res.stats = { error: err };
-            next();
-        });
-});
-
+// routes
+app.all("/*", require("./route-handlers/file-stats"));
+app.get("/@logout", require("./route-handlers/logout"));
+app.get("/@login", require("./route-handlers/login-page"));
+app.post("/@login", require("./route-handlers/login-form"));
 // currently unused
-app.put("/*", (req, res) => {
-    if (res.stats.error) {
-        req.busboy.on("file", (key, file, filename) => {
-            if (key == "file") {
-                let save = fs.createWriteStream(relative(res.filename));
-                file.pipe(save);
-                save.on("close", () => {
-                    res.flash("success", "File saved. ");
-                    res.redirect("back");
-                });
-                save.on("error", (err) => {
-                    res.flash("error", err);
-                    res.redirect("back");
-                });
-            }
-        });
-        req.busboy.on("field", (key, value) => {});
-        req.pipe(req.busboy);
-    } else {
-        req.flash("error", "File exists, cannot overwrite. ");
-        res.redirect("back");
-    }
-});
-
-app.post("/*@upload", (req, res) => {
-    res.filename = getFileNameByParam(req.params[0]);
-
-    const tempFile = `upload-${new Date().getTime()}`;
-
-    req.busboy.on("file", (key, stream) => {
-        // check file size
-        const writeStream = fs.createWriteStream(relative(res.filename, tempFile));
-
-        writeStream.on("error", (err) => {
-            req.flash("error", err);
-            res.redirect("back");
-        });
-        stream.pipe(writeStream);
-    });
-
-    req.busboy.on("field", (key, value) => {
-        if (key == "saveas") {
-            new Promise((resolve, reject) => {
-                // check if file already exists
-                fs.stat(relative(res.filename, value), (err, stats) =>
-                    err ? resolve() : reject("File exists, cannot overwrite. ")
-                );
-            }).then(() => new Promise((resolve, reject) => {
-                fs.rename(
-                    path.join(res.filename, tempFile),
-                    path.join(res.filename, value),
-                    (err) => {
-                        if (err) {
-                            reject(err);
-                        }
-                        else {
-                            fs.stat(relative(res.filename, value), (err, stats) => resolve(!stats.size ? "File saved. Warning: empty file." : "File saved."));
-                        };
-                    }
-                );
-            }))
-            .then((success) => {
-                req.flash("success", success);
-            })
-            .catch((error) => new Promise((resolve) => {
-                // delete temp file on error
-                fs.unlink(relative(res.filename, tempFile), () => {
-                    req.flash("error", error);
-                    resolve();
-                });
-            }))
-            .finally(() => {
-                res.redirect("back");
-            });
-        }
-    });
-
-    req.pipe(req.busboy);
-});
-
-app.post("/*@mkdir", (req, res) => {
-    res.filename = getFileNameByParam(req.params[0]);
-
-    let folder = req.body.folder;
-    if (!folder || folder.length < 1) {
-        return res.status(400).end();
-    }
-
-    let fileExists = new Promise((resolve, reject) => {
-        // Check if file exists
-        fs.stat(relative(res.filename, folder), (err, stats) => {
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stats);
-        });
-    });
-
-    fileExists
-        .then((stats) => {
-            req.flash("error", "Folder exists, cannot overwrite. ");
-            res.redirect("back");
-        })
-        .catch((err) => {
-            fs.mkdir(relative(res.filename, folder), (err) => {
-                if (err) {
-                    req.flash("error", err);
-                    res.redirect("back");
-                    return;
-                }
-                req.flash("success", "Folder created. ");
-                res.redirect("back");
-            });
-        });
-});
-
-app.post("/*@delete", (req, res) => {
-    res.filename = getFileNameByParam(req.params[0]);
-
-    let files = JSON.parse(req.body.files);
-    if (!files || !files.map) {
-        req.flash("error", "No files selected.");
-        res.redirect("back");
-        return; // res.status(400).end();
-    }
-
-    let promises = files.map((f) => {
-        return new Promise((resolve, reject) => {
-            fs.stat(relative(res.filename, f), (err, stats) => {
-                if (err) {
-                    return reject(err);
-                }
-                resolve({
-                    name: f,
-                    isdirectory: stats.isDirectory(),
-                    isfile: stats.isFile(),
-                });
-            });
-        });
-    });
-    Promise.all(promises)
-        .then((files) => {
-            let promises = files.map((f) => {
-                return new Promise((resolve, reject) => {
-                    let op = null;
-                    if (f.isdirectory) {
-                        op = (dir, cb) =>
-                            rimraf(
-                                dir,
-                                {
-                                    glob: false,
-                                },
-                                cb
-                            );
-                    } else if (f.isfile) {
-                        op = fs.unlink;
-                    }
-                    if (op) {
-                        op(relative(res.filename, f.name), (err) => {
-                            if (err) {
-                                return reject(err);
-                            }
-                            resolve();
-                        });
-                    }
-                });
-            });
-            Promise.all(promises)
-                .then(() => {
-                    req.flash("success", "Files deleted. ");
-                    res.redirect("back");
-                })
-                .catch((err) => {
-                    req.flash("error", "Unable to delete some files: " + err);
-                    res.redirect("back");
-                });
-        })
-        .catch((err) => {
-            req.flash("error", err);
-            res.redirect("back");
-        });
-});
-
-app.get("/*@download", (req, res) => {
-    res.filename = getFileNameByParam(req.params[0]);
-
-    let files = null;
-    try {
-        files = JSON.parse(req.query.files);
-    } catch (e) {}
-    if (!files || !files.map) {
-        req.flash("error", "No files selected.");
-        res.redirect("back");
-        return; // res.status(400).end();
-    }
-
-    let promises = files.map((f) => {
-        return new Promise((resolve, reject) => {
-            fs.stat(relative(res.filename, f), (err, stats) => {
-                if (err) {
-                    return reject(err);
-                }
-                resolve({
-                    name: f,
-                    isdirectory: stats.isDirectory(),
-                    isfile: stats.isFile(),
-                });
-            });
-        });
-    });
-    Promise.all(promises)
-        .then((files) => {
-            let zip = archiver.create("zip", {});
-            zip.on("error", function (err) {
-                res.status(500).send({
-                    error: err.message,
-                });
-            });
-
-            files
-                .filter((f) => f.isfile)
-                .forEach((f) => {
-                    zip.file(relative(res.filename, f.name), { name: f.name });
-                });
-            files
-                .filter((f) => f.isdirectory)
-                .forEach((f) => {
-                    zip.directory(relative(res.filename, f.name), f.name);
-                });
-
-            res.attachment("Archive.zip");
-            zip.pipe(res);
-
-            zip.finalize();
-        })
-        .catch((err) => {
-            console.log(err);
-            req.flash("error", err);
-            res.redirect("back");
-        });
-});
-
-const shellable = process.env.SHELL != "false" && process.env.SHELL;
-const cmdable = process.env.CMD != "false" && process.env.CMD;
-if (shellable || cmdable) {
-    const shellArgs = process.env.SHELL.split(" ");
-    const exec = process.env.SHELL == "login" ? "/usr/bin/env" : shellArgs[0];
-    const args = process.env.SHELL == "login" ? ["login"] : shellArgs.slice(1);
-
-    const child_process = require("child_process");
-
-    // currently unused
-    app.post("/*@cmd", (req, res) => {
-        res.filename = rgetFileNameByParam(eq.params[0]);
-
-        let cmd = req.body.cmd;
-        if (!cmd || cmd.length < 1) {
-            return res.status(400).end();
-        }
-
-        child_process.exec(
-            cmd,
-            {
-                shell: shell,
-                cwd: relative(res.filename),
-                timeout: 60 * 1000,
-            },
-            (err, stdout, stderr) => {
-                if (err) {
-                    req.flash("error", "Command failed due to non-zero exit code");
-                }
-                res.render(
-                    "cmd",
-                    flashify(req, {
-                        path: res.filename,
-                        cmd: cmd,
-                        stdout: stdout,
-                        stderr: stderr,
-                    })
-                );
-            }
-        );
-    });
-
-    const pty = require("node-pty");
-    const WebSocket = require("ws");
-
-    app.get("/*@shell", (req, res) => {
-        res.filename = getFileNameByParam(req.params[0]);
-
-        res.render(
-            "shell",
-            flashify(req, {
-                path: res.filename,
-            })
-        );
-    });
-
-    const ws = new WebSocket.Server({ server: http });
-    ws.on("connection", (socket, request) => {
-        console.log(request.url);
-        const { path } = querystring.parse(request.url.split("?")[1]);
-        let cwd = relative(path);
-        let term = pty.spawn(exec, args, {
-            name: "xterm-256color",
-            cols: 80,
-            rows: 30,
-            cwd: cwd,
-        });
-        console.log(
-            "pid " + term.pid + " shell " + process.env.SHELL + " started in " + cwd
-        );
-
-        term.on("data", (data) => {
-            socket.send(data, { binary: true });
-        });
-        term.on("exit", (code) => {
-            console.log("pid " + term.pid + " ended");
-            socket.close();
-        });
-        socket.on("message", (data) => {
-            // special messages should decode to Buffers
-            if (Buffer.isBuffer(data)) {
-                switch (data.readUInt16BE(0)) {
-                    case 0:
-                        term.resize(data.readUInt16BE(1), data.readUInt16BE(2));
-                        return;
-                }
-            }
-            term.write(data);
-        });
-        socket.on("close", () => {
-            term.end();
-        });
-    });
+app.put("/*", require("./route-handlers/file-put"));
+app.post("/*@upload", require("./route-handlers/upload"));
+app.post("/*@mkdir", require("./route-handlers/mkdir"));
+app.post("/*@delete", require("./route-handlers/delete"));
+app.get("/*@download", require("./route-handlers/download"));
+if (SHELLABLE || CMDABLE) {
+  // currently unused
+  app.post("/*@cmd", require("./route-handlers/cmd"));
+  app.get("/*@shell", require("./route-handlers/shell"));
 }
 
-app.get("/*", (req, res) => {
-    if (res.stats.error) {
-        res.render(
-            "list",
-            flashify(req, {
-                shellable: shellable,
-                cmdable: cmdable,
-                path: res.filename,
-                errors: [res.stats.error],
-            })
-        );
-    } else if (res.stats.isDirectory()) {
-        if (!req.url.endsWith("/")) {
-            return res.redirect(req.url + "/");
-        }
+// need to be last, catch-all
+app.get("/*", require("./route-handlers/list"));
 
-        let readDir = new Promise((resolve, reject) => {
-            fs.readdir(relative(res.filename), (err, filenames) => {
-                if (err) {
-                    return reject(err);
-                }
-                return resolve(filenames);
-            });
-        });
-
-        readDir
-            .then((filenames) => {
-                let promises = filenames.map((f) => {
-                    return new Promise((resolve, reject) => {
-                        fs.stat(relative(res.filename, f), (err, stats) => {
-                            if (err) {
-                                return reject(err);
-                            }
-                            resolve({
-                                name: f,
-                                isdirectory: stats.isDirectory(),
-                                size: filesize(stats.size),
-                            });
-                        });
-                    });
-                });
-
-                Promise.all(promises)
-                    .then((files) => {
-                        res.render(
-                            "list",
-                            flashify(req, {
-                                shellable: shellable,
-                                cmdable: cmdable,
-                                path: res.filename,
-                                files: files,
-                            })
-                        );
-                    })
-                    .catch((err) => {
-                        res.render(
-                            "list",
-                            flashify(req, {
-                                shellable: shellable,
-                                cmdable: cmdable,
-                                path: res.filename,
-                                errors: [err],
-                            })
-                        );
-                    });
-            })
-            .catch((err) => {
-                res.render(
-                    "list",
-                    flashify(req, {
-                        shellable: shellable,
-                        cmdable: cmdable,
-                        path: res.filename,
-                        errors: [err],
-                    })
-                );
-            });
-    } else if (res.stats.isFile()) {
-        res.sendFile(relative(res.filename), {
-            dotfiles: "allow",
-        });
-    }
+// configure websocket
+const ws = new WebSocket.Server({ server: http });
+ws.on("connection", (socket, request) => {
+  const { pathname } =  url.parse(request.url);
+  const [, wsEnpoint] = pathname.split("/").filter((part) => !!part);
+  switch (wsEnpoint) {
+    case "shell":
+      if (SHELLABLE || CMDABLE) {
+        initShell(socket, request);
+      }
+      break;
+  }
 });

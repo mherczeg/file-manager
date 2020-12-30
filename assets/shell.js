@@ -11,7 +11,7 @@ $(document).ready(() => {
     Terminal.applyAddon(fit);
 
     let term = new Terminal();
-    let ws = new WebSocket("ws" + (window.location.protocol === "https:" ? "s" : "") + "://" + window.location.host + "/websocket?path=" + encodeURIComponent($shell.data("path")));
+    let ws = new WebSocket("ws" + (window.location.protocol === "https:" ? "s" : "") + "://" + window.location.host + "/websocket/shell?path=" + encodeURIComponent($shell.data("path")));
     term.attach(ws, true, true);
     term.open($shell[0]);
 
