@@ -14,6 +14,7 @@ const WebSocket = require("ws");
 const path = require("path");
 const { SESSION_HASH, PORT, SHELLABLE, CMDABLE } = require("./env");
 const { initShell } = require("./ws-handlers/shell");
+const { initCast } = require("./ws-handlers/cast");
 const url = require("url");
 
 // configure express
@@ -61,15 +62,14 @@ app.all("/*", require("./route-handlers/file-stats"));
 app.get("/@logout", require("./route-handlers/logout"));
 app.get("/@login", require("./route-handlers/login-page"));
 app.post("/@login", require("./route-handlers/login-form"));
-// currently unused
-app.put("/*", require("./route-handlers/file-put"));
+app.put("/*", require("./route-handlers/file-put")); // currently unused
 app.post("/*@upload", require("./route-handlers/upload"));
 app.post("/*@mkdir", require("./route-handlers/mkdir"));
 app.post("/*@delete", require("./route-handlers/delete"));
 app.get("/*@download", require("./route-handlers/download"));
+app.get("/*@cast", require("./route-handlers/cast"));
 if (SHELLABLE || CMDABLE) {
-  // currently unused
-  app.post("/*@cmd", require("./route-handlers/cmd"));
+  app.post("/*@cmd", require("./route-handlers/cmd")); // currently unused
   app.get("/*@shell", require("./route-handlers/shell"));
 }
 
@@ -79,13 +79,16 @@ app.get("/*", require("./route-handlers/list"));
 // configure websocket
 const ws = new WebSocket.Server({ server: http });
 ws.on("connection", (socket, request) => {
-  const { pathname } =  url.parse(request.url);
+  const { pathname } = url.parse(request.url);
   const [, wsEnpoint] = pathname.split("/").filter((part) => !!part);
   switch (wsEnpoint) {
     case "shell":
       if (SHELLABLE || CMDABLE) {
         initShell(socket, request);
       }
+      break;
+    case "cast":
+      initCast(socket, request);
       break;
   }
 });

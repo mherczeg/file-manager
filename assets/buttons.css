@@ -1,0 +1,21 @@
+.btn-octicon {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.btn-octicon > svg {
+    margin-right: 0.5em;
+}
+
+.cast-control,
+.cast-control:hover,
+.cast-control:active,
+.cast-control:visited {
+  background: transparent !important;
+  border: none;
+  padding: 0;
+  position: absolute;
+  left: -4px;
+  top: -2px;
+}

@@ -1,0 +1,53 @@
+{{> navbar path=path}}
+
+<div style="padding-top: 56px; padding-bottom: 56px;">
+    <main class="container my-4">
+        {{#each errors as |error|}}
+        <div class="alert alert-danger" role="alert">
+            {{error}}
+        </div>
+        {{/each}}
+        {{#each successes as |success|}}
+        <div class="alert alert-success" role="alert">
+            {{success}}
+        </div>
+        {{/each}}
+        <ul class="list-group">
+            {{#each files}}
+            <li class="list-group-item">
+                <div class="custom-control">
+                    {{#if isvideo}}
+                    <a class="btn btn-primary text-primary cast-control cast-start" data-toggle="modal"
+                        data-media="{{ media }}"
+                        data-placement="top" title="Cast File">
+                        {{octicon "play"}}
+                    </a>
+                    {{/if}}
+                    {{#if issubtitle}}
+                    <input type="checkbox" class="custom-control-input multi-select" data-select="{{name}}"
+                        data-select-size="{{size}}" id="check{{@index}}">
+                    {{/if}}
+                    <label class="d-flex align-items-start justify-content-between" for="check{{@index}}">
+                        {{#if isdirectory}}
+                        <a href="./{{name}}/" class="name">{{name}}/</a>
+                        {{else}}
+                        <a href="./{{name}}" class="name mr-auto">{{name}}</a>
+                        {{/if}}
+                        {{#if isvideo}}
+                        <span class="badge badge-pill badge-primary">{{extension}}</span>
+                        {{/if}}
+                        {{#if issubtitle}}
+                        <span class="badge badge-pill badge-info">{{extension}}</span>
+                        {{/if}}
+                        <span class="badge badge-pill badge-secondary">{{size}}</span>
+                    </label>
+                </div>
+            </li>
+            {{else}}
+            <li class="list-group-item">
+                No files
+            </li>
+            {{/each}}
+        </ul>
+    </main>
+</div>

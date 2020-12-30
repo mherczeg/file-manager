@@ -16,7 +16,8 @@
             "env": {
                 "FOLDER":"../local-file-server-test-folder",
                 "SESSION_HASH":"secret123",
-                "PORT": "8084"
+                "PORT": "8084",
+                "SHELLABLE": true,
             },
         }
     ]
