@@ -1,7 +1,7 @@
 {
   "name": "file-manager",
   "description": "A simple file manager",
-  "version": "0.0.7a",
+  "version": "0.0.81",
   "bin": {
     "file-manager": "./index.js"
   },
@@ -12,6 +12,7 @@
     "chromecast-api": "^0.3.4",
     "connect-busboy": "^0.0.2",
     "connect-flash": "^0.1.1",
+    "cors": "^2.8.5",
     "express": "^4.16.2",
     "express-handlebars": "^3.0.0",
     "express-session": "^1.15.6",
@@ -21,7 +22,9 @@
     "node-pty": "^0.7.8",
     "notp": "^2.0.3",
     "octicons": "^8.5.0",
+    "preact": "^10.5.8",
     "rimraf": "^2.6.2",
+    "rxjs": "^6.6.3",
     "socket.io": "^2.0.4",
     "thirty-two": "^1.0.2",
     "ws": "^6.1.2",

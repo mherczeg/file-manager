@@ -41,7 +41,7 @@ module.exports = (req, res) => {
               const isdirectory = stats.isDirectory();
               const extension = f.split(".").pop();
               const isvideo = ["mkv", "mp4", "avi"].includes(extension);
-              const issubtitle = ["srt"].includes(extension);
+              const issubtitle = ["srt", "vtt"].includes(extension);
               resolve({
                 name: f,
                 media: path.join(res.filename, f).replace(`${FOLDER}/`, ''),

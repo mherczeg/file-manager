@@ -12,6 +12,7 @@
             {{success}}
         </div>
         {{/each}}
+        <div id="cast-controls-root"></div>
         <ul class="list-group">
             {{#each files}}
             <li class="list-group-item">
@@ -24,8 +25,7 @@
                     </a>
                     {{/if}}
                     {{#if issubtitle}}
-                    <input type="checkbox" class="custom-control-input multi-select" data-select="{{name}}"
-                        data-select-size="{{size}}" id="check{{@index}}">
+                    <input type="checkbox" class="subtitle-select" data-media="{{ media }}">
                     {{/if}}
                     <label class="d-flex align-items-start justify-content-between" for="check{{@index}}">
                         {{#if isdirectory}}

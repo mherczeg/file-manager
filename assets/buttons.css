@@ -5,7 +5,7 @@
 }
 
 .btn-octicon > svg {
-    margin-right: 0.5em;
+  margin-right: 0.5em;
 }
 
 .cast-control,
@@ -18,4 +18,12 @@
   position: absolute;
   left: -4px;
   top: -2px;
+}
+
+.subtitle-select {
+  position: absolute;
+  left: 0;
+  width: 1rem;
+  height: 1.25rem;
+  top: 2px;
 }

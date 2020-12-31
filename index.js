@@ -7,9 +7,11 @@
 const express = require("express");
 const bodyparser = require("body-parser");
 const session = require("express-session");
+const cors = require('cors');
 const busboy = require("connect-busboy");
 const flash = require("connect-flash");
 const WebSocket = require("ws");
+const { version } = require("./package.json");
 
 const path = require("path");
 const { SESSION_HASH, PORT, SHELLABLE, CMDABLE } = require("./env");
@@ -18,34 +20,50 @@ const { initCast } = require("./ws-handlers/cast");
 const url = require("url");
 
 // configure express
-let app = express();
-let http = app.listen(PORT);
+const app = express();
+const http = app.listen(PORT);
+
+// needed for cast subtitles
+app.use(cors());
 
 app.set("views", path.join(__dirname, "views"));
 app.engine("handlebars", require("./engines/handlebars"));
 app.set("view engine", "handlebars");
 
+const staticContent = (path) => express.static(path, { maxAge: 1 });
 app.use(
   "/bootstrap",
-  express.static(path.join(__dirname, "node_modules/bootstrap/dist"))
+  staticContent(path.join(__dirname, "node_modules/bootstrap/dist"))
 );
 app.use(
   "/octicons",
-  express.static(path.join(__dirname, "node_modules/octicons/build"))
+  staticContent(path.join(__dirname, "node_modules/octicons/build"))
 );
 app.use(
   "/jquery",
-  express.static(path.join(__dirname, "node_modules/jquery/dist"))
+  staticContent(path.join(__dirname, "node_modules/jquery/dist"))
 );
 app.use(
   "/filesize",
-  express.static(path.join(__dirname, "node_modules/filesize/lib"))
+  staticContent(path.join(__dirname, "node_modules/filesize/lib"))
 );
 app.use(
   "/xterm",
-  express.static(path.join(__dirname, "node_modules/xterm/dist"))
+  staticContent(path.join(__dirname, "node_modules/xterm/dist"))
 );
-app.use("/assets", express.static(path.join(__dirname, "assets")));
+app.use(
+  "/node_modules/preact/dist",
+  staticContent(path.join(__dirname, "node_modules/preact/dist"))
+);
+app.use(
+  "/node_modules/preact/hooks/dist",
+  staticContent(path.join(__dirname, "node_modules/preact/hooks/dist"))
+);
+app.use(
+  "/node_modules/rxjs/bundles",
+  staticContent(path.join(__dirname, "node_modules/rxjs/bundles"))
+);
+app.use("/assets", staticContent(path.join(__dirname, "assets")));
 
 app.use(
   session({

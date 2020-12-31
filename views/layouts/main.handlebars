@@ -1,13 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <title>File Manager</title>
 
     <link rel="stylesheet" href="/octicons/octicons.min.css" />
-
+    <!-- libs -->
     <script src="/jquery/jquery.min.js"></script>
+    <!-- not a good way to load, but beats checking in downloaded files -->
+    <script src="/node_modules/preact/dist/preact.umd.js"></script>
+    <script src="/node_modules/preact/hooks/dist/hooks.umd.js"></script>
+    <script src="/node_modules/rxjs/bundles/rxjs.umd.min.js"></script>
+
+    <!-- let's use modules like it's 1999! -->
+    <script src="/assets/store.js"></script>
+
     <link rel="stylesheet" href="/bootstrap/css/bootstrap.min.css" />
     <script src="/bootstrap/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="/xterm/xterm.css" />
@@ -16,7 +25,7 @@
     <script src="/xterm/addons/fit/fit.js"></script>
 
     <script src="/filesize/filesize.js"></script>
-    
+
     <link rel="stylesheet" href="/assets/fonts.css" />
     <link rel="stylesheet" href="/assets/buttons.css" />
 
@@ -36,7 +45,9 @@
 
     <script src="/assets/cast.js"></script>
 </head>
+
 <body>
     {{{body}}}
 </body>
+
 </html>
