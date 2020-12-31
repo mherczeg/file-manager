@@ -76,7 +76,7 @@ const initCast = (socket) => {
                 url: toStreamUrl(subtitle),
               })),
             };
-            device.play(media, sendError(error));
+            device.play(media, sendError);
             break;
           case "pause":
             device.pause(sendError);
