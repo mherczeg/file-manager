@@ -4,6 +4,8 @@
 /* jshint node: true */
 "use strict";
 
+const http = require("http");
+const https = require("https");
 const express = require("express");
 const bodyparser = require("body-parser");
 const session = require("express-session");
@@ -11,16 +13,36 @@ const cors = require("cors");
 const busboy = require("connect-busboy");
 const flash = require("connect-flash");
 const WebSocket = require("ws");
+const fs = require("fs");
 const { version } = require("./package.json");
 
 const path = require("path");
-const { SESSION_HASH, PORT, SHELLABLE, CMDABLE } = require("./env");
+const {
+  SESSION_HASH,
+  PORT,
+  SHELLABLE,
+  CMDABLE,
+  HTTPS_CERT,
+  HTTPS_KEY,
+} = require("./env");
 const { initShell } = require("./ws-handlers/shell");
 const url = require("url");
 
+const createSecureServer = (app, key, cert) => {
+  const privateKey = fs.readFileSync(key, "utf8");
+  const certificate = fs.readFileSync(cert, "utf8");
+
+  const credentials = { key: privateKey, cert: certificate };
+  return https.createServer(credentials, app);
+};
+
 // configure express
 const app = express();
-const http = app.listen(PORT);
+const httpServer =
+  HTTPS_CERT && HTTPS_KEY
+    ? createSecureServer(app, HTTPS_KEY, HTTPS_CERT)
+    : http.createServer(app);
+httpServer.listen(PORT);
 
 // needed for cast subtitles
 app.use(cors());
@@ -100,7 +122,7 @@ if (SHELLABLE || CMDABLE) {
 app.get("/*", require("./route-handlers/list"));
 
 // configure websocket
-const ws = new WebSocket.Server({ server: http });
+const ws = new WebSocket.Server({ server: httpServer });
 ws.on("connection", (socket, request) => {
   const { pathname } = url.parse(request.url);
   const [, wsEnpoint] = pathname.split("/").filter((part) => !!part);
