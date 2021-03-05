@@ -7,7 +7,7 @@
 const express = require("express");
 const bodyparser = require("body-parser");
 const session = require("express-session");
-const cors = require('cors');
+const cors = require("cors");
 const busboy = require("connect-busboy");
 const flash = require("connect-flash");
 const WebSocket = require("ws");
@@ -16,7 +16,6 @@ const { version } = require("./package.json");
 const path = require("path");
 const { SESSION_HASH, PORT, SHELLABLE, CMDABLE } = require("./env");
 const { initShell } = require("./ws-handlers/shell");
-const { initCast } = require("./ws-handlers/cast");
 const url = require("url");
 
 // configure express
@@ -27,6 +26,7 @@ const http = app.listen(PORT);
 app.use(cors());
 
 app.set("views", path.join(__dirname, "views"));
+
 app.engine("handlebars", require("./engines/handlebars"));
 app.set("view engine", "handlebars");
 
@@ -62,6 +62,11 @@ app.use(
 app.use(
   "/node_modules/rxjs/bundles",
   staticContent(path.join(__dirname, "node_modules/rxjs/bundles"))
+);
+
+app.use(
+  "/cast-controls/build",
+  staticContent(path.join(__dirname, "cast-controls/build"))
 );
 app.use("/assets", staticContent(path.join(__dirname, "assets")));
 

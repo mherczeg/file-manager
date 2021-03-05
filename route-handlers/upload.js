@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const { getFileNameByParam, relative } = require("../lib/helpers");
+const { isCastable } = require("../lib/cast-helpers");
+const { extractSubtitles, rewriteCodec } = require("../lib/file-transform");
 
 module.exports = (req, res) => {
   res.filename = getFileNameByParam(req.params[0]);
@@ -45,27 +47,43 @@ module.exports = (req, res) => {
           err ? resolve() : reject("File exists, cannot overwrite. ")
         );
       })
-        .then(
-          () =>
-            new Promise((resolve, reject) => {
-              fs.rename(
-                path.join(res.filename, tempFile),
-                path.join(res.filename, value),
-                (err) => {
-                  if (err) {
-                    reject(err);
-                  } else {
-                    fs.stat(relative(res.filename, value), (err, stats) =>
-                      resolve(
-                        !stats.size
-                          ? "File saved. Warning: empty file."
-                          : "File saved."
-                      )
-                    );
-                  }
+        .then(() =>
+          new Promise((resolve, reject) => {
+            fs.rename(
+              path.join(res.filename, tempFile),
+              path.join(res.filename, value),
+              (err) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  fs.stat(relative(res.filename, value), (err, stats) =>
+                    resolve({
+                      path: relative(res.filename, value),
+                      size: stats.size,
+                    })
+                  );
                 }
-              );
-            })
+              }
+            );
+          })
+            .then((result) =>
+              isCastable(result.path)
+                ? extractSubtitles(result.path)
+                    .then(() => rewriteCodec(result.path))
+                    .then(() => result)
+                    .catch((error) => {
+                      console.log(error);
+                      return Promise.resolve(result);
+                    })
+                : Promise.resolve(result)
+            )
+            
+
+            .then((result) =>
+              !result.stats.size
+                ? "File saved. Warning: empty file."
+                : "File saved."
+            )
         )
         .then((success) => {
           req.flash("success", success);

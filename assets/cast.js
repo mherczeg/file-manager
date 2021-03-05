@@ -1,144 +1,157 @@
-"use strict";
-(function () {
-  const { Component, h, render, createContext } = window.preact;
-  const { useContext, useState, useEffect } = window.preactHooks;
-  const { state, updateStatus } = window.store;
+window.addEventListener("DOMContentLoaded", () => {
+  const cjs = new Castjs();
+  cjs.on("available", () => {
+    console.log(cjs.status);
 
-  window.addEventListener("DOMContentLoaded", () => {
-    const ws = new WebSocket(
-      "ws" +
-        (window.location.protocol === "https:" ? "s" : "") +
-        "://" +
-        window.location.host +
-        "/websocket/cast"
-    );
-
-    window.addEventListener("beforeunload", () => ws.close());
-
-    const send = ({ type, command, data }) => {
-      ws.readyState === 1 &&
-        ws.send(
-          JSON.stringify({
-            type,
-            command,
-            data,
-          })
-        );
-    };
-
-    initCastControls(send);
-    ws.addEventListener("open", () => {
-      ws.addEventListener("close", (e) => {
-        console.log("ws closing", e);
-      });
-      ws.addEventListener("message", (e) => {
-        const message = JSON.parse(e.data);
-        switch (message.type) {
-          case "serverStatus":
-            updateStatus({
-              data: message.data,
-              status: message.data.status,
-            });
-            break;
-          case "deviceStatus":
-            updateStatus({
-              data: message.data,
-              status: message.data.playerState,
-            });
-            console.log(message);
-            break;
-        }
-      });
-
-      document.querySelectorAll(".cast-start").forEach((castbutton) =>
-        castbutton.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const media = castbutton.dataset.media;
-          const subtitles = Array.from(
-            document.querySelectorAll(".subtitle-select")
-          )
-            .filter(({ checked }) => checked)
-            .map(({ dataset }) => dataset.media);
-          send({
-            type: "command",
-            command: "play",
-            data: { media, subtitles },
-          });
-        })
-      );
-    });
+    const castFile = sessionStorage.getItem("cast-file");
+    if (castFile) {
+      sessionStorage.removeItem("cast-file");
+      cjs.cast(castFile);
+    }
   });
 
-  function initCastControls(send) {
-    const State = createContext(state.getValue());
+  cjs.on("connect", () => {
+    console.log(cjs.status);
+  });
 
-    const Controls = () => {
-      const state = useContext(State);
-      return h(
-        "div",
-        null,
-        JSON.stringify(state),
-        h(
-          "button",
-          {
-            onClick: () =>
-              send({
-                type: "command",
-                command: "pause",
-              }),
-          },
-          "pause"
-        ),
-        h(
-          "button",
-          {
-            onClick: () =>
-              send({
-                type: "command",
-                command: "resume",
-              }),
-          },
-          "resume"
-        ),
-        h(
-          "button",
-          {
-            onClick: () =>
-              send({
-                type: "command",
-                command: "stop",
-              }),
-          },
-          "stop"
-        )
-      );
-    };
+  document.querySelectorAll(".cast-start").forEach((castbutton) =>
+    castbutton.addEventListener("click", (e) => {
+      if (!cjs.available) return;
+      e.preventDefault();
+      e.stopPropagation();
+      cjs.cast(castbutton.dataset.media);
+    })
+  );
+});
 
-    /** Components can just be pure functions */
-    const CastControls = (props) => {
-      const [appState, setAppState] = useState();
+/* class ChromeCastService {
+  constructor() {
+    this.castSession = null;
 
-      useEffect(() => {
-        const subscription = state.subscribe((newState) =>
-          setAppState(newState)
-        );
-        return () => subscription.unsubscribe();
-      }, []);
-
-      return (
-        appState &&
-        h(
-          State.Provider,
-          { value: appState },
-          h("div", null, "Hello", "World"),
-          h(Controls, null)
-        )
-      );
-    };
-    const root = document.getElementById("cast-controls-root");
-    if (root) {
-      render(h(CastControls), root);
-    }
+    this.sessionRequest = new chrome.cast.SessionRequest(
+      chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID
+    );
+    const apiConfig = new chrome.cast.ApiConfig(
+      this.sessionRequest,
+      (session) => {
+        // sessionListener
+        console.log("Received ChromeCast session", session);
+        this.castSession = session;
+      },
+      (receiverAvailability) => {
+        // receiverListener
+        if (
+          receiverAvailability === chrome.cast.ReceiverAvailability.AVAILABLE
+        ) {
+          console.log("Chromecast receivers are available");
+        } else if (
+          receiverAvailability === chrome.cast.ReceiverAvailability.NAVAILABLE
+        ) {
+          console.log("No Chromecast receiver available");
+        }
+      }
+    );
+    chrome.cast.initialize(
+      apiConfig,
+      (...args) => {
+        console.log("Successful ChromeCast initialization", args);
+      },
+      (error) => {
+        console.log("ChromeCast initialization failed", error);
+      }
+    );
   }
-})();
+
+  // Lets the user select a ChromeCast and opens the player on the big screen
+  selectDevice() {
+    console.log("Opening ChromeCast device selection prompt");
+    return new Promise((resolve, reject) => {
+      chrome.cast.requestSession(
+        (session) => {
+          // ChromeCast should now show an empty media player on the screen. You're ready to stream
+          console.log("Successfully connected to ChromeCast", session);
+          sessionStorage.setItem('cast-session-id', session.sessionId)
+          this.castSession = session;
+          resolve(this.castSession);
+        },
+        (error) => {
+          console.log("Connection to ChromeCast failed", error);
+          reject(error);
+        },
+        this.sessionRequest
+      );
+    });
+  }
+
+  isConnectedToDevice() {
+    return this.castSession && this.castSession.status === "connected";
+  }
+
+  setMedia(mediaUrl, subtitlesUrl, contentType) {
+    const mediaInfo = new chrome.cast.media.MediaInfo(mediaUrl, contentType);
+    let subtitlesPreparationPromise = Promise.resolve();
+    if (subtitlesUrl) {
+      // Check if the subs exist
+      subtitlesPreparationPromise = axios.head(subtitlesUrl).then(
+        () => {
+          const subtitles = new chrome.cast.media.Track(
+            1,
+            chrome.cast.media.TrackType.TEXT
+          );
+          subtitles.trackContentId = subtitlesUrl;
+          subtitles.trackContentType = "text/vtt";
+          subtitles.subtype = chrome.cast.media.TextTrackType.SUBTITLES;
+          subtitles.name = "English Subtitles"; // Can be in any language
+          subtitles.language = "en-US"; // Can be in any language
+          subtitles.customData = null;
+          mediaInfo.tracks = [subtitles];
+          mediaInfo.activeTrackIds = [1];
+        },
+        () => {}
+      );
+    }
+
+    subtitlesPreparationPromise.then(() => {
+      const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
+      this.castSession.loadMedia(
+        loadRequest,
+        (media) => {
+          console.log("Media loaded successfully");
+          const tracksInfoRequest = new chrome.cast.media.EditTracksInfoRequest(
+            [1]
+          );
+          media.editTracksInfo(
+            tracksInfoRequest,
+            (s) => console.log("Subtitles loaded"),
+            (e) => console.log(e)
+          );
+        },
+        (errorCode) => {
+          console.error(errorCode);
+        }
+      );
+    });
+  }
+}
+/*
+let ChromeCast = null;
+window["__onGCastApiAvailable"] = function (isAvailable) {
+  if (isAvailable) {
+    ChromeCast = new ChromeCastService();
+  }
+};
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".cast-start").forEach((castbutton) =>
+    castbutton.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      ChromeCast.setMedia(castbutton.dataset.media);
+    })
+  );
+
+  document.querySelector("#join").addEventListener("click", ({ target }) => {
+    ChromeCast.selectDevice();
+  });
+});
+*/

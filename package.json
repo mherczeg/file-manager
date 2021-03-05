@@ -5,20 +5,31 @@
   "bin": {
     "file-manager": "./index.js"
   },
+  "scripts": {
+    "build-cast-controls": "cd cast-controls && yarn build",
+    "start-server": "./index.js",
+    "start": "npm run build-cast-controls && npm run start-server"
+  },
   "dependencies": {
+    "@material-ui/icons": "^4.11.2",
     "archiver": "^2.1.1",
     "body-parser": "^1.18.2",
     "bootstrap": "^4.3.1",
-    "chromecast-api": "^0.3.4",
     "connect-busboy": "^0.0.2",
     "connect-flash": "^0.1.1",
     "cors": "^2.8.5",
     "express": "^4.16.2",
     "express-handlebars": "^3.0.0",
     "express-session": "^1.15.6",
+    "ffmpeg": "0.0.4",
     "filesize": "^3.6.0",
+    "fluent-ffmpeg": "^2.1.2",
     "ip": "^1.1.5",
+    "iso-639-1": "^2.1.8",
+    "iso-639-3": "^2.2.0",
     "jquery": "^3.5.0",
+    "mime-types": "^2.1.29",
+    "node-ffprobe": "^3.0.0",
     "node-pty": "^0.7.8",
     "notp": "^2.0.3",
     "octicons": "^8.5.0",
@@ -29,5 +40,6 @@
     "thirty-two": "^1.0.2",
     "ws": "^6.1.2",
     "xterm": "^3.8.1"
-  }
+  },
+  "devDependencies": {}
 }

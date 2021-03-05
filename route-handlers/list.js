@@ -2,7 +2,14 @@ const fs = require("fs");
 const filesize = require("filesize");
 
 const { relative, flashify } = require("../lib/helpers");
-const { SHELLABLE, CMDABLE } = require('../env');
+const { SHELLABLE, CMDABLE } = require("../env");
+const {
+  getCastMediaString,
+  isCastable,
+  isSubtitle,
+  isVtt,
+  readSubtitles,
+} = require("../lib/cast-helpers");
 
 module.exports = (req, res) => {
   if (res.stats.error) {
@@ -37,10 +44,24 @@ module.exports = (req, res) => {
               if (err) {
                 return reject(err);
               }
-              resolve({
-                name: f,
-                isdirectory: stats.isDirectory(),
-                size: filesize(stats.size),
+              const iscastable = isCastable(f);
+              const issubtitle = isSubtitle(f);
+              const isvtt = isVtt(f);
+              const isdirectory = stats.isDirectory();
+
+              (iscastable ? readSubtitles(relative(res.filename, f)) : Promise.resolve()).then((subtitles) => {
+                resolve({
+                  name: f,
+                  iscastable,
+                  issubtitle,
+                  hasEmbeddedSubtitles: subtitles && subtitles.length > 0,
+                  unsupportedSubtitle: issubtitle && !isvtt,
+                  isdirectory,
+                  size: filesize(stats.size),
+                  castmedia: iscastable
+                    ? getCastMediaString(res.filename, f, filenames)
+                    : null,
+                });
               });
             });
           });
@@ -48,13 +69,14 @@ module.exports = (req, res) => {
 
         Promise.all(promises)
           .then((files) => {
+            files.sort((a, b) => a.iscastable - b.iscastable);
             res.render(
               "list",
               flashify(req, {
                 shellable: SHELLABLE,
                 cmdable: CMDABLE,
                 path: res.filename,
-                files: files,
+                files: files.reverse(),
               })
             );
           })
