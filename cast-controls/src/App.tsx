@@ -111,7 +111,10 @@ const App: React.FunctionComponent = () => {
   const [mediaToLoad, setMediaToLoad] = useState<PlayerProps>();
 
   useEffect(() => {
-    const castMedia = sessionStorage.getItem(CAST_MEDIA_STORAGE_KEY);
+    const cookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CAST_MEDIA_STORAGE_KEY}=`));
+    const castMedia = (cookie || "").split('=')[1];
     if (castMedia) {
       const { videoUrl, videoMime, title, images, subtitles } = JSON.parse(castMedia || '') as CastMedia;
       if (videoUrl && videoMime) {
@@ -125,7 +128,8 @@ const App: React.FunctionComponent = () => {
       receiverApplicationId={receiverApplicationId}
       mediaLoadComplete={() => {
         console.log('media load complete');
-        sessionStorage.removeItem(CAST_MEDIA_STORAGE_KEY)
+        // delete cookie
+        document.cookie = `${CAST_MEDIA_STORAGE_KEY}=; Max-Age=-99999999;`;
       }}
       {...mediaToLoad} />
   );

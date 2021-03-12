@@ -22,9 +22,9 @@ const {
   PORT,
   SHELLABLE,
   CMDABLE,
-  HTTPS_CERT,
-  HTTPS_KEY,
+  HTTPS_PORT,
 } = require("./env");
+
 const { initShell } = require("./ws-handlers/shell");
 const url = require("url");
 
@@ -38,11 +38,10 @@ const createSecureServer = (app, key, cert) => {
 
 // configure express
 const app = express();
-const httpServer =
-  HTTPS_CERT && HTTPS_KEY
-    ? createSecureServer(app, HTTPS_KEY, HTTPS_CERT)
-    : http.createServer(app);
+const httpServer = http.createServer(app);
+const httpsServer = createSecureServer(app, HTTPS_KEY, HTTPS_CERT);
 httpServer.listen(PORT);
+httpsServer.listen(HTTPS_PORT);
 
 // needed for cast subtitles
 app.use(cors());
@@ -101,6 +100,25 @@ app.use(flash());
 app.use(busboy());
 app.use(bodyparser.urlencoded());
 app.use(require("./lib/auth-middleware"));
+
+// on the cast page, we want to force https, otherwise chrome won't allow us to cast
+app.all("/*@cast", (req, res, next) => {
+  if (!req.secure) {
+    res.redirect(`https://${req.hostname}:${HTTPS_PORT}${req.url}`);
+  }
+  else next();
+});
+
+// everywhere else force http, partly becuase dealing with https is pointless, 
+// and partly because we need to serve the media files on http for the receiver
+// the reason with that is even if we configure a CA and self signed certificates on the local network,
+// there is no way to authorize that CA on the cast device
+app.all("/*", (req, res, next) => {
+  if (req.secure && !req.url.match(/\/*@cast/)){
+    res.redirect(`http://${req.hostname}:${PORT}${req.url}`);
+  } 
+  else next();
+});
 
 // routes
 app.all("/*", require("./route-handlers/file-stats"));
