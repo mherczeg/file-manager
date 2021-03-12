@@ -23,6 +23,8 @@ const {
   SHELLABLE,
   CMDABLE,
   HTTPS_PORT,
+  HTTPS_KEY, 
+  HTTPS_CERT
 } = require("./env");
 
 const { initShell } = require("./ws-handlers/shell");
